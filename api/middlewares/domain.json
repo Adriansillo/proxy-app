@@ -1,0 +1,17 @@
+[
+    {
+        "Domain": "alpha",
+        "Weight": 5,
+        "Priority": 5
+    },
+    {
+        "Domain": "omega",
+        "Weight": 1,
+        "Priority": 5
+    },
+    {
+        "Domain": "beta",
+        "Weight": 5,
+        "Priority": 2
+    }
+]

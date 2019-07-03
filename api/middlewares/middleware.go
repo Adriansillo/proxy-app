@@ -1,15 +1,17 @@
 package middlewares
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
 
 	"github.com/kataras/iris"
-	"github.com/ziutek/mymysql/mysql"
+	_ "github.com/ziutek/mymysql/godrv"
 	_ "github.com/ziutek/mymysql/native"
 )
 
@@ -60,23 +62,25 @@ func (q *Queue) Read() map[string]int {
 
 func readFromDb() []*Queue {
 	const query = "SELECT * FROM proxy;"
-	conn := mysql.New(
-		"tcp",
-		"",
-		os.Getenv("DB_HOST")+":"+os.Getenv("DB_PORT"),
-		os.Getenv("DB_USER"),
-		os.Getenv("DB_PASS"),
-		os.Getenv("DB_NAME"),
-	)
-	var final []*Queue
-	conn.Connect()
-	rows, result, err := conn.Query(query)
-	fmt.Println("rows", rows)
-	fmt.Println("result", result)
+	db, err := sql.Open("mymysql", os.Getenv("DB_CONNECTION_STRING"))
 	fmt.Println("err", err)
-	defer conn.Close()
-	for row := range rows {
-		fmt.Println(row)
+	if err != nil {
+		log.Fatal(err)
+	}
+	rows, err := db.Query(query)
+	fmt.Println("rows", rows)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var final []*Queue
+	for rows.Next() {
+		tmp := &Queue{}
+		err := rows.Scan(&tmp.Domain, &tmp.Weight, &tmp.Priority)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Println(tmp.Domain, tmp.Weight, tmp.Priority)
+		final = append(final, tmp)
 	}
 	return final
 }
@@ -95,11 +99,9 @@ func readFromFile() []*Queue {
 }
 
 func ProxyMiddleware(c iris.Context) {
-	if requestPonderations == nil {
-		var repo Repository
-		repo = &Queue{}
-		repo.Read()
-	}
+	var repo Repository
+	repo = &Queue{}
+	repo.Read()
 	if Que == nil {
 		Que = make(map[int][]string)
 	}

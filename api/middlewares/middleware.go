@@ -9,6 +9,8 @@ import (
 	"sort"
 
 	"github.com/kataras/iris"
+	"github.com/ziutek/mymysql/mysql"
+	_ "github.com/ziutek/mymysql/native"
 )
 
 type Queue struct {
@@ -43,6 +45,43 @@ func GetQue() []string {
 }
 
 func (q *Queue) Read() map[string]int {
+	var final []*Queue
+	if os.Getenv("DB_ENABLED") == "true" {
+		final = readFromDb()
+	} else {
+		final = readFromFile()
+	}
+	requestPonderations = make(map[string]int)
+	for _, element := range final {
+		requestPonderations[element.Domain] = element.Priority * element.Weight
+	}
+	return requestPonderations
+}
+
+func readFromDb() []*Queue {
+	const query = "SELECT * FROM proxy;"
+	conn := mysql.New(
+		"tcp",
+		"",
+		os.Getenv("DB_HOST")+":"+os.Getenv("DB_PORT"),
+		os.Getenv("DB_USER"),
+		os.Getenv("DB_PASS"),
+		os.Getenv("DB_NAME"),
+	)
+	var final []*Queue
+	conn.Connect()
+	rows, result, err := conn.Query(query)
+	fmt.Println("rows", rows)
+	fmt.Println("result", result)
+	fmt.Println("err", err)
+	defer conn.Close()
+	for row := range rows {
+		fmt.Println(row)
+	}
+	return final
+}
+
+func readFromFile() []*Queue {
 	path, _ := filepath.Abs("")
 	jsonFile, err := os.Open(path + "/api/middlewares/domain.json")
 	if err != nil {
@@ -52,11 +91,7 @@ func (q *Queue) Read() map[string]int {
 	byteValue, _ := ioutil.ReadAll(jsonFile)
 	var final []*Queue
 	json.Unmarshal(byteValue, &final)
-	requestPonderations = make(map[string]int)
-	for _, element := range final {
-		requestPonderations[element.Domain] = element.Priority * element.Weight
-	}
-	return requestPonderations
+	return final
 }
 
 func ProxyMiddleware(c iris.Context) {
